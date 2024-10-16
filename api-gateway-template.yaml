@@ -1,0 +1,480 @@
+Resources:
+  ApiGatewayStagedevcftest1:
+    Type: "AWS::ApiGateway::Stage"
+    Properties:
+      RestApiId: 
+        Ref: "ApiGatewayRestApicftest1"
+      DeploymentId:
+        Fn::GetAtt:
+        - "ApiGatewayDeploymentcftest1"
+        - "DeploymentId"
+      StageName: "dev"
+      CacheClusterSize: "0.5"
+      TracingEnabled: false
+      CacheClusterEnabled: false  
+  ApiGatewayRestApicftest1:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Description: "REST API with GET endpoint which triggers a Lambda function that fetches a quote."
+      ApiKeySourceType: "HEADER"
+      EndpointConfiguration:
+        Types:
+        - "REGIONAL"
+      DisableExecuteApiEndpoint: false
+      Name: "quote-api-cftest1"
+  ApiGatewayDeploymentcftest1:
+    DependsOn: ApiGatewayMethodquotecftest1
+    Type: "AWS::ApiGateway::Deployment"
+    Properties:
+      Description: "Initial deployment, dev stage."
+      RestApiId: 
+        Ref: "ApiGatewayRestApicftest1"
+  ApiGatewayMethodquotecftest1:
+    Type: AWS::ApiGateway::Method
+    DependsOn: 
+      - ApiGatewayRestApicftest1
+      - ApiGatewayResourcequotecftest1
+    Properties: 
+      RestApiId: 
+        Ref: "ApiGatewayRestApicftest1"
+      ResourceId: 
+        Ref: "ApiGatewayResourcequotecftest1"
+      HttpMethod: GET
+      AuthorizationType: "NONE"
+      Integration: 
+        Type: AWS 
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+        Uri: 'arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:577224486130:function:quote-fetcher-cftest1/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+              application/json: 'Empty'
+  ApiGatewayMethodpopulatecftest1:
+    Type: AWS::ApiGateway::Method
+    DependsOn: 
+      - ApiGatewayRestApicftest1
+      - ApiGatewayResourcepopulatecftest1
+    Properties: 
+      RestApiId: 
+        Ref: "ApiGatewayRestApicftest1"
+      ResourceId: 
+        Ref: "ApiGatewayResourcepopulatecftest1"
+      HttpMethod: GET
+      AuthorizationType: "NONE"
+      Integration: 
+        Type: AWS 
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+        Uri: 'arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:577224486130:function:quote-writer-cftest1/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+              application/json: 'Empty'
+  ApiGatewayResourcequotecftest1:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: 
+        Ref: "ApiGatewayRestApicftest1"
+      ParentId: !GetAtt
+        - "ApiGatewayRestApicftest1"
+        - RootResourceId
+      PathPart: quote
+  ApiGatewayResourcepopulatecftest1:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: 
+        Ref: "ApiGatewayRestApicftest1"
+      ParentId: !GetAtt
+        - "ApiGatewayRestApicftest1"
+        - RootResourceId
+      PathPart: populate
+  LambdaFunctionquotefetchercftest1:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: "Auto"
+      Handler: "index.lambda_handler"
+      Code:
+        # S3Bucket: "quotes-cftest1"
+        # S3Key: "quote-fetcher-package.zip"
+        ZipFile: |
+          import json
+          import os
+          import boto3
+          import uuid
+          import datetime
+
+          dynamodb_client = boto3.client('dynamodb')
+          s3_client = boto3.client('s3')
+          table = os.environ['dynamo_db_table']
+          bucket = os.environ['s3_bucket']
+          logfile_key = os.environ['s3_logfile']
+
+          def lambda_handler(event, context):
+              rand_uuid = str(uuid.uuid4())
+              scan = True
+              
+              while scan:
+                  random_quote = dynamodb_client.scan(
+                      TableName=table,
+                      ExclusiveStartKey={
+                          'quote_id': {
+                              'S': rand_uuid
+                          }
+                      },
+                      Limit=1
+                  )
+                  if len(random_quote['Items']) > 0:
+                      scan = False
+                  
+              quote_text = random_quote['Items'][0]['text']['S']
+              author = random_quote['Items'][0]['author']['S']
+              
+              
+              log_message = f"{datetime.datetime.utcnow()} Fetched quote: \"{quote_text}\" - {author}"
+              
+              try:
+                  quote_log_object = s3_client.get_object(Bucket=bucket, Key=logfile_key)
+                  log_data = quote_log_object['Body'].read().decode('utf-8')
+                  log_data += f"\n{log_message}"
+              except Exception as e:
+                  print(e)
+                  log_data = log_message
+              finally:
+                  print(log_data)
+                  s3_client.put_object(Body=log_data, Bucket=bucket, Key=logfile_key)
+              
+              
+              payload = {
+                  'statusCode': 200,
+                  'body': {
+                      'quote': quote_text,
+                      'author': author
+                  }
+              }
+              return payload
+      Role:
+        Fn::GetAtt:
+        - "IAMRolequotefetcherrolecftest1"
+        - "Arn"
+      FunctionName: "quote-fetcher-cftest1"
+      Runtime: "python3.12"
+      PackageType: "Zip"
+      LoggingConfig:
+        LogFormat: "Text"
+        LogGroup: "/aws/lambda/quote-fetcher-cftest1"
+      RecursiveLoop: "Terminate"
+      Environment:
+        Variables:
+          s3_logfile: "quote-log.txt"
+          s3_bucket: "quotes-cftest1"
+          dynamo_db_table: "quotes-cftest1"
+      Timeout: 3
+  LambdaPermissionfunctionquotefetcher:
+    DependsOn: "LambdaFunctionquotefetchercftest1"
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+        - "LambdaFunctionquotefetchercftest1"
+        - "Arn"
+      Action: "lambda:InvokeFunction"
+      SourceArn:
+        Fn::Join:
+          - ""
+          - - "arn:aws:execute-api:us-east-1:577224486130:"
+            - Fn::GetAtt: ApiGatewayRestApicftest1.RestApiId
+            - "/*/GET/quote"
+      Principal: "apigateway.amazonaws.com"
+  LambdaFunctionquotewritercftest1:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: "Auto"
+      Handler: "index.lambda_handler"
+      Code:
+        # S3Bucket: "quotes-cftest1"
+        # S3Key: "quote-writer-package.zip"
+        ZipFile: |
+          import boto3
+          import csv
+          import os
+
+          def lambda_handler(event, context):
+              dynamodb = boto3.resource('dynamodb')
+              table_name = 'quotes-cftest1'
+              table = dynamodb.Table(table_name)
+              
+              s3 = boto3.client('s3')
+              bucket = 'quotes-cftest1'
+              file_key = 'quotes.csv'
+              
+              s3_object = s3.get_object(Bucket=bucket, Key=file_key)
+              file_content = s3_object['Body'].read().decode('utf-8').splitlines()
+              file_dict = csv.DictReader(file_content)
+              
+              item_count = 0
+              error_count = 0
+              errors = []
+
+              with table.batch_writer() as batch:
+                  for item in file_dict:
+                      try:
+                          print(f"trying {item}")
+                          batch.put_item(Item={
+                                  'quote_id': item['quote_id'],
+                                  'text': item['quote_text'],
+                                  'author': item['author'],
+                                  'date': item['Date']
+                              }
+                          )
+                          item_count += 1
+                      except Exception as e:
+                          print(f"Error inserting item {item['quote_id']}: {e}")
+                          errors.append(item)
+                          error_count += 1
+
+              return {
+                  'statusCode': 200,
+                  'body': f'Import of {file_key} completed. {item_count} rows inserted into {table_name} table with {error_count} errors.',
+                  'errors': errors
+              }
+      Role:
+        Fn::GetAtt:
+        - "IAMRolequotewriterrolecftest1"
+        - "Arn"
+      FunctionName: "quote-writer-cftest1"
+      Runtime: "python3.12"
+      PackageType: "Zip"
+      LoggingConfig:
+        LogFormat: "Text"
+        LogGroup: "/aws/lambda/quote-writer-cftest1"
+      RecursiveLoop: "Terminate"
+      # Environment:
+      #   Variables:
+      Timeout: 30
+  LambdaPermissionfunctionwriter:
+    DependsOn: "LambdaFunctionquotewritercftest1"
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+        - "LambdaFunctionquotewritercftest1"
+        - "Arn"
+      Action: "lambda:InvokeFunction"
+      SourceArn:
+        Fn::Join:
+          - ""
+          - - "arn:aws:execute-api:us-east-1:577224486130:"
+            - Fn::GetAtt: ApiGatewayRestApicftest1.RestApiId
+            - "/*/GET/populate"
+      Principal: "apigateway.amazonaws.com"
+  S3Buckequotelogcftest1:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "quotes-cftest1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  DynamoDBTablequotescftest1:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      TableName: "quotes-cftest1"
+      AttributeDefinitions:
+      - AttributeType: "S"
+        AttributeName: "quote_id"
+      BillingMode: "PROVISIONED"
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      ProvisionedThroughput:
+        WriteCapacityUnits: 1
+        ReadCapacityUnits: 1
+      KeySchema:
+        - KeyType: "HASH"
+          AttributeName: "quote_id"
+      TableClass: "STANDARD"
+  IAMRolequotefetcherrolecftest1:
+    DependsOn:
+      - IAMManagedPolicyAWSLambdaBasicExecutionRolequotefetchercftest1
+      - IAMManagedPolicypolicydynamodbquoteread
+      - IAMManagedPolicypolicys3quotelogread
+      - IAMManagedPolicypolicys3quotelogwrite
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/service-role/"
+      ManagedPolicyArns:
+      - "arn:aws:iam::577224486130:policy/service-role/IAMManagedPolicyAWSLambdaBasicExecutionRolequotefetchercftest1"
+      - "arn:aws:iam::577224486130:policy/dynamo-db-quotes-table-read-cftest1"
+      - "arn:aws:iam::577224486130:policy/s3-quote-log-write-cftest1"
+      - "arn:aws:iam::577224486130:policy/s3-quote-log-read-cftest1"
+      MaxSessionDuration: 3600
+      RoleName: "quote-fetcher-role-cftest1"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+  IAMManagedPolicyAWSLambdaBasicExecutionRolequotefetchercftest1:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: "IAMManagedPolicyAWSLambdaBasicExecutionRolequotefetchercftest1"
+      Path: "/service-role/"
+      Description: ""
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource: "arn:aws:logs:us-east-1:577224486130:*"
+          Action: "logs:CreateLogGroup"
+          Effect: "Allow"
+        - Resource:
+          - "arn:aws:logs:us-east-1:577224486130:log-group:/aws/lambda/quote-fetcher-cftest1:*"
+          Action:
+          - "logs:CreateLogStream"
+          - "logs:PutLogEvents"
+          Effect: "Allow"
+  IAMManagedPolicypolicydynamodbquoteread:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: "dynamo-db-quotes-table-read-cftest1"
+      Path: "/"
+      Description: "Policy with GetItem permission to the quotes table."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource:
+          - "arn:aws:dynamodb:*:577224486130:table/quotes-cftest1/index/quote_id"
+          - "arn:aws:dynamodb:*:577224486130:table/quotes-cftest1"
+          Action:
+          - "dynamodb:GetItem"
+          - "dynamodb:Scan"
+          Effect: "Allow"
+          Sid: "VisualEditor0"
+  IAMManagedPolicypolicys3quotelogread:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: "s3-quote-log-read-cftest1"
+      Path: "/"
+      Description: "Policy with getObject read access to quotes-cftest1 bucket."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource: "arn:aws:s3:::quotes-cftest1/*"
+          Action: "s3:GetObject"
+          Effect: "Allow"
+          Sid: "VisualEditor0"
+  IAMManagedPolicypolicys3quotelogwrite:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: "s3-quote-log-write-cftest1"
+      Path: "/"
+      Description: "Policy with putObject permissions to the quote-log.txt object\
+        \ in the quote-log bucket."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource: "arn:aws:s3:::quotes-cftest1/quote-log.txt"
+          Action: "s3:PutObject"
+          Effect: "Allow"
+          Sid: "VisualEditor0"
+  IAMRolequotewriterrolecftest1:
+    Type: "AWS::IAM::Role"
+    DependsOn:
+      - IAMManagedPolicyAWSLambdaBasicExecutionRolequotewritercftest1
+      - IAMManagedPolicypolicydynamodbquotewriter
+      - IAMManagedPolicypolicys3quoteread 
+    Properties:
+      Path: "/service-role/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::577224486130:policy/service-role/IAMManagedPolicyAWSLambdaBasicExecutionRolequotewritercftest1"
+        - "arn:aws:iam::577224486130:policy/dynamo-db-quotes-table-writer-cftest1"
+        - "arn:aws:iam::577224486130:policy/s3-quote-read-cftest1"
+      RoleName: "quote-writer-role-cftest1"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+  IAMManagedPolicyAWSLambdaBasicExecutionRolequotewritercftest1:
+    Type: "AWS::IAM::ManagedPolicy"
+    # DependsOn:
+    #   - "quote-writer-role-cftest1"
+    Properties:
+      ManagedPolicyName: "IAMManagedPolicyAWSLambdaBasicExecutionRolequotewritercftest1"
+      Path: "/service-role/"
+      Description: ""
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource: "arn:aws:logs:us-east-1:577224486130:*"
+          Action: "logs:CreateLogGroup"
+          Effect: "Allow"
+        - Resource:
+          - "arn:aws:logs:us-east-1:577224486130:log-group:/aws/lambda/quote-writer-cftest1:*"
+          Action:
+          - "logs:CreateLogStream"
+          - "logs:PutLogEvents"
+          Effect: "Allow"
+      # Roles:
+      #     - "quote-writer-role-cftest1"
+  IAMManagedPolicypolicydynamodbquotewriter:
+    Type: "AWS::IAM::ManagedPolicy"
+    # DependsOn:
+    #   - "quote-writer-role-cftest1"
+    Properties:
+      ManagedPolicyName: "dynamo-db-quotes-table-writer-cftest1"
+      Path: "/"
+      Description: "Policy with PutItem permission to the quotes table."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource:
+          - "arn:aws:dynamodb:*:577224486130:table/quotes-cftest1/index/quote_id"
+          - "arn:aws:dynamodb:*:577224486130:table/quotes-cftest1"
+          Action:
+          - "dynamodb:PutItem"
+          - "dynamodb:BatchWriteItem"
+          Effect: "Allow"
+          Sid: "VisualEditor0"
+      # Roles:
+      #   - "quote-writer-role-cftest1"
+  IAMManagedPolicypolicys3quoteread:
+    Type: "AWS::IAM::ManagedPolicy"
+    # DependsOn:
+    #   - "quote-writer-role-cftest1"
+    Properties:
+      ManagedPolicyName: "s3-quote-read-cftest1"
+      Path: "/"
+      Description: "Policy with putObject permissions to the quotes.csv object\
+        \ in the quotes bucket."
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Resource: "arn:aws:s3:::quotes-cftest1/quotes.csv"
+          Action: "s3:GetObject"
+          Effect: "Allow"
+          Sid: "VisualEditor0"
+      # Roles:
+      #   - "quote-writer-role-cftest1"
+  # DynamicThingy1:
+  # DynamicThingy2:
