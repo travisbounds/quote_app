@@ -2,7 +2,6 @@ import boto3
 import csv
 import os
 
-
 def lambda_handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     table_name = 'quotes-cftest1'
