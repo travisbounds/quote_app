@@ -1,5 +1,6 @@
 import os
 import boto3
+from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 import random
 
@@ -15,13 +16,12 @@ logfile = os.environ['s3_logfile']
 def lambda_handler(event, context):
     try:
         table_response = table.scan()
-        print(table_response)
     except Exception as e:
         message = f"Error reading table {table_name} to select quote. Please check table and permissions. {e}"
         print(message)
         body = {'message': message}
         status_code = 500
-        raise Exception(message)
+        raise Exception
     
     quotes = table_response['Items']
     random_quote = random.choice(quotes)
@@ -31,6 +31,10 @@ def lambda_handler(event, context):
     try:
         log_object = s3.get_object(Bucket=bucket, Key=logfile)
         log_data = log_object['Body'].read().decode('utf-8')
+    except ClientError as e:
+        print(f"File {logfile} does not exist. Creating empty logfile in bucket {bucket}. {e}")
+        if e.response['Error']['Code'] == 'NoSuchKey': s3.put_object(Body="", Bucket=bucket, Key=logfile)
+        log_data = ""
     except Exception as e:
         message = f"Error accessing logfile {logfile} in bucket {bucket}. Please check bucket and permissions. {e}"
         print(message)
@@ -47,7 +51,7 @@ def lambda_handler(event, context):
         print(message)
         status_code = 500
         body = {'message': message}
-        raise Exception(message)
+        raise Exception
 
     print(f"Logged message: {log_message}")
     message = f"Sucessfully fetched random quote and logged it to logfile {logfile} in bucket {bucket}."
@@ -58,7 +62,7 @@ def lambda_handler(event, context):
         'quote': quote_text,
         'author': author
     }
-
+    
     return {
         'statusCode': status_code,
         'body': body
