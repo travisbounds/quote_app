@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         print(message)
         body = {'message': message}
         status_code = 500
-        raise Exception
+        raise Exception(message)
     
     quotes = table_response['Items']
     random_quote = random.choice(quotes)

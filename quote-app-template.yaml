@@ -107,8 +107,8 @@ Resources:
       Environment:
         Variables:
           s3_logfile: quote-log.txt
-          s3_bucket: quote-app
-          dynamodb_table: quote-app
+          s3_bucket: quote-app-bucket-12834
+          dynamodb_table: quote-app-table
       Timeout: 10
 
   LambdaPermissionquotefetcher:
@@ -145,7 +145,7 @@ Resources:
         Variables:
           source_bucket: quote-app-source
           quotes_source_file: quotes.csv
-          dynamodb_table: quote-app
+          dynamodb_table: quote-app-table
       Timeout: 30
 
   LambdaPermissionquotewriter:
@@ -161,7 +161,7 @@ Resources:
           - /*/GET/populate
       Principal: apigateway.amazonaws.com
 
-  S3Buckequote:
+  S3Bucketquoteapp:
     Type: AWS::S3::Bucket
     Properties:
       PublicAccessBlockConfiguration:
@@ -169,7 +169,7 @@ Resources:
         IgnorePublicAcls: true
         BlockPublicPolicy: true
         BlockPublicAcls: true
-      BucketName: quote-app
+      BucketName: quote-app-bucket-12834
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerEnforced
@@ -182,7 +182,7 @@ Resources:
   DynamoDBTablequotes:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: quote-app
+      TableName: quote-app-table
       AttributeDefinitions:
         - AttributeType: S
           AttributeName: quote_id
@@ -201,14 +201,14 @@ Resources:
     Type: AWS::IAM::Role
     DependsOn:
       - IAMManagedPolicyLambdaBasicExecutionRolequotefetcher
-      - IAMManagedPolicypolicydynamodbquoteread
+      - IAMManagedPolicydynamodbquoteread
       - IAMManagedPolicys3quoteappread
-      - IAMManagedPolicypolicys3quotewrite
+      - IAMManagedPolicys3quotewrite
     Properties:
       Path: /service-role/
       ManagedPolicyArns:
         - arn:aws:iam::577224486130:policy/service-role/IAMManagedPolicyLambdaBasicExecutionRolequotefetcher
-        - arn:aws:iam::577224486130:policy/dynamo-db-quote-app-table-read
+        - arn:aws:iam::577224486130:policy/dynamo-db-quote-app-read
         - arn:aws:iam::577224486130:policy/s3-quote-app-write
         - arn:aws:iam::577224486130:policy/s3-quote-app-read
       MaxSessionDuration: 3600
@@ -240,18 +240,18 @@ Resources:
               - logs:PutLogEvents
             Effect: Allow
 
-  IAMManagedPolicypolicydynamodbquoteread:
+  IAMManagedPolicydynamodbquoteread:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       ManagedPolicyName: dynamo-db-quote-app-read
       Path: /
-      Description: Policy with GetItem permission to the quote-app table.
+      Description: Policy with GetItem and Scan permission to the quote-app-table table.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Resource:
-              - arn:aws:dynamodb:*:577224486130:table/quote-app/index/quote_id
-              - arn:aws:dynamodb:*:577224486130:table/quote-app
+              - arn:aws:dynamodb:*:577224486130:table/quote-app-table/index/quote_id
+              - arn:aws:dynamodb:*:577224486130:table/quote-app-table
             Action:
               - dynamodb:GetItem
               - dynamodb:Scan
@@ -263,20 +263,20 @@ Resources:
     Properties:
       ManagedPolicyName: s3-quote-app-read
       Path: /
-      Description: Policy with getObject read access to quote-app bucket.
+      Description: Policy with getObject and ListBucket read access to quote-app bucket.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Resource:
-              - arn:aws:s3:::quote-app/*
-              - arn:aws:s3:::quote-app
+              - arn:aws:s3:::quote-app-bucket-12834/*
+              - arn:aws:s3:::quote-app-bucket-12834
             Action: 
               - s3:GetObject
               - s3:ListBucket
             Effect: Allow
             Sid: VisualEditor0
 
-  IAMManagedPolicypolicys3quotewrite:
+  IAMManagedPolicys3quotewrite:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       ManagedPolicyName: s3-quote-app-write
@@ -285,7 +285,7 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Resource: arn:aws:s3:::quote-app/quote-log.txt
+          - Resource: arn:aws:s3:::quote-app-bucket-12834/quote-log.txt
             Action: s3:PutObject
             Effect: Allow
             Sid: VisualEditor0
@@ -295,7 +295,6 @@ Resources:
     DependsOn:
       - IAMManagedPolicyAWSLambdaBasicExecutionRolequotewriter
       - IAMManagedPolicydynamodbquoteappwrite
-      - IAMManagedPolicys3quoteappread
     Properties:
       Path: /service-role/
       ManagedPolicyArns:
@@ -335,29 +334,15 @@ Resources:
     Properties:
       ManagedPolicyName: dynamo-db-quote-app-write
       Path: /
-      Description: Policy with PutItem and BatchWriteItem permission to the quote-app table.
+      Description: Policy with PutItem and BatchWriteItem permission to the quote-app-table table.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Resource:
-              - arn:aws:dynamodb:*:577224486130:table/quote-app/index/quote_id
-              - arn:aws:dynamodb:*:577224486130:table/quote-app
+              - arn:aws:dynamodb:*:577224486130:table/quote-app-table/index/quote_id
+              - arn:aws:dynamodb:*:577224486130:table/quote-app-table
             Action:
               - dynamodb:PutItem
               - dynamodb:BatchWriteItem
-            Effect: Allow
-            Sid: VisualEditor0
-
-  IAMManagedPolicys3quoteappread:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      ManagedPolicyName: s3-quote-app-read
-      Path: /
-      Description: Policy with GetObject permissions to the quotes.csv object in the quotes bucket.
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Resource: arn:aws:s3:::quote-app/quotes.csv
-            Action: s3:GetObject
             Effect: Allow
             Sid: VisualEditor0
