@@ -18,7 +18,7 @@ Resources:
         Types:
           - REGIONAL
       DisableExecuteApiEndpoint: false
-      Name: quote-api-cftest1
+      Name: quote-app-api
 
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -44,7 +44,7 @@ Resources:
           - StatusCode: 200
             ResponseTemplates:
               application/json: ""
-        Uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:577224486130:function:quote-fetcher-cftest1/invocations
+        Uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:577224486130:function:quote-fetcher/invocations
       MethodResponses:
         - StatusCode: 200
           ResponseModels:
@@ -67,7 +67,7 @@ Resources:
           - StatusCode: 200
             ResponseTemplates:
               application/json: ""
-        Uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:577224486130:function:quote-writer-cftest1/invocations
+        Uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:577224486130:function:quote-writer/invocations
       MethodResponses:
         - StatusCode: 200
           ResponseModels:
@@ -97,18 +97,18 @@ Resources:
         S3Bucket: quote-app-source
         S3Key: quote_fetcher.zip
       Role: !GetAtt IAMRolequotefetcher.Arn
-      FunctionName: quote-fetcher-cftest1
+      FunctionName: quote-fetcher
       Runtime: python3.12
       PackageType: Zip
       LoggingConfig:
         LogFormat: Text
-        LogGroup: /aws/lambda/quote-fetcher-cftest1
+        LogGroup: /aws/lambda/quote-fetcher
       RecursiveLoop: Terminate
       Environment:
         Variables:
           s3_logfile: quote-log.txt
-          s3_bucket: quotes-cftest1
-          dynamodb_table: quotes-cftest1
+          s3_bucket: quote-app
+          dynamodb_table: quote-app
       Timeout: 10
 
   LambdaPermissionquotefetcher:
@@ -134,18 +134,18 @@ Resources:
         S3Bucket: quote-app-source
         S3Key: quote_writer.zip
       Role: !GetAtt IAMRolequotewriter.Arn
-      FunctionName: quote-writer-cftest1
+      FunctionName: quote-writer
       Runtime: python3.12
       PackageType: Zip
       LoggingConfig:
         LogFormat: Text
-        LogGroup: /aws/lambda/quote-writer-cftest1
+        LogGroup: /aws/lambda/quote-writer
       RecursiveLoop: Terminate
       Environment:
         Variables:
           source_bucket: quote-app-source
           quotes_source_file: quotes.csv
-          dynamodb_table: quotes-cftest1
+          dynamodb_table: quote-app
       Timeout: 30
 
   LambdaPermissionquotewriter:
@@ -169,7 +169,7 @@ Resources:
         IgnorePublicAcls: true
         BlockPublicPolicy: true
         BlockPublicAcls: true
-      BucketName: quotes-cftest1
+      BucketName: quote-app
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerEnforced
@@ -182,7 +182,7 @@ Resources:
   DynamoDBTablequotes:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: quotes-cftest1
+      TableName: quote-app
       AttributeDefinitions:
         - AttributeType: S
           AttributeName: quote_id
@@ -202,17 +202,17 @@ Resources:
     DependsOn:
       - IAMManagedPolicyLambdaBasicExecutionRolequotefetcher
       - IAMManagedPolicypolicydynamodbquoteread
-      - IAMManagedPolicypolicys3quotelogread
-      - IAMManagedPolicypolicys3quotelogwrite
+      - IAMManagedPolicys3quoteappread
+      - IAMManagedPolicypolicys3quotewrite
     Properties:
       Path: /service-role/
       ManagedPolicyArns:
         - arn:aws:iam::577224486130:policy/service-role/IAMManagedPolicyLambdaBasicExecutionRolequotefetcher
-        - arn:aws:iam::577224486130:policy/dynamo-db-quotes-table-read-cftest1
-        - arn:aws:iam::577224486130:policy/s3-quote-log-write-cftest1
-        - arn:aws:iam::577224486130:policy/s3-quote-log-read-cftest1
+        - arn:aws:iam::577224486130:policy/dynamo-db-quote-app-table-read
+        - arn:aws:iam::577224486130:policy/s3-quote-app-write
+        - arn:aws:iam::577224486130:policy/s3-quote-app-read
       MaxSessionDuration: 3600
-      RoleName: quote-fetcher-role-cftest1
+      RoleName: quote-fetcher-role
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -234,7 +234,7 @@ Resources:
             Action: logs:CreateLogGroup
             Effect: Allow
           - Resource:
-              - arn:aws:logs:us-east-1:577224486130:log-group:/aws/lambda/quote-fetcher-cftest1:*
+              - arn:aws:logs:us-east-1:577224486130:log-group:/aws/lambda/quote-fetcher:*
             Action:
               - logs:CreateLogStream
               - logs:PutLogEvents
@@ -243,49 +243,49 @@ Resources:
   IAMManagedPolicypolicydynamodbquoteread:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: dynamo-db-quotes-table-read-cftest1
+      ManagedPolicyName: dynamo-db-quote-app-read
       Path: /
-      Description: Policy with GetItem permission to the quotes table.
+      Description: Policy with GetItem permission to the quote-app table.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Resource:
-              - arn:aws:dynamodb:*:577224486130:table/quotes-cftest1/index/quote_id
-              - arn:aws:dynamodb:*:577224486130:table/quotes-cftest1
+              - arn:aws:dynamodb:*:577224486130:table/quote-app/index/quote_id
+              - arn:aws:dynamodb:*:577224486130:table/quote-app
             Action:
               - dynamodb:GetItem
               - dynamodb:Scan
             Effect: Allow
             Sid: VisualEditor0
 
-  IAMManagedPolicypolicys3quotelogread:
+  IAMManagedPolicys3quoteappread:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: s3-quote-log-read-cftest1
+      ManagedPolicyName: s3-quote-app-read
       Path: /
-      Description: Policy with getObject read access to quotes-cftest1 bucket.
+      Description: Policy with getObject read access to quote-app bucket.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Resource:
-              - arn:aws:s3:::quotes-cftest1/*
-              - arn:aws:s3:::quotes-cftest1
+              - arn:aws:s3:::quote-app/*
+              - arn:aws:s3:::quote-app
             Action: 
               - s3:GetObject
               - s3:ListBucket
             Effect: Allow
             Sid: VisualEditor0
 
-  IAMManagedPolicypolicys3quotelogwrite:
+  IAMManagedPolicypolicys3quotewrite:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: s3-quote-log-write-cftest1
+      ManagedPolicyName: s3-quote-app-write
       Path: /
-      Description: Policy with putObject permissions to the quote-log.txt object in the quote-log bucket.
+      Description: Policy with putObject permissions to the quote-log.txt object in the quote-app bucket.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Resource: arn:aws:s3:::quotes-cftest1/quote-log.txt
+          - Resource: arn:aws:s3:::quote-app/quote-log.txt
             Action: s3:PutObject
             Effect: Allow
             Sid: VisualEditor0
@@ -294,15 +294,15 @@ Resources:
     Type: AWS::IAM::Role
     DependsOn:
       - IAMManagedPolicyAWSLambdaBasicExecutionRolequotewriter
-      - IAMManagedPolicydynamodbquotewrite
-      - IAMManagedPolicypolicys3quoteread
+      - IAMManagedPolicydynamodbquoteappwrite
+      - IAMManagedPolicys3quoteappread
     Properties:
       Path: /service-role/
       ManagedPolicyArns:
         - arn:aws:iam::577224486130:policy/service-role/IAMManagedPolicyAWSLambdaBasicExecutionRolequotewriter
-        - arn:aws:iam::577224486130:policy/dynamo-db-quotes-table-writer-cftest1
-        - arn:aws:iam::577224486130:policy/s3-quote-read-cftest1
-      RoleName: quote-writer-role-cftest1
+        - arn:aws:iam::577224486130:policy/dynamo-db-quote-app-write
+        - arn:aws:iam::577224486130:policy/s3-quote-app-read
+      RoleName: quote-writer-role
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -324,40 +324,40 @@ Resources:
             Action: logs:CreateLogGroup
             Effect: Allow
           - Resource:
-              - arn:aws:logs:us-east-1:577224486130:log-group:/aws/lambda/quote-writer-cftest1:*
+              - arn:aws:logs:us-east-1:577224486130:log-group:/aws/lambda/quote-writer:*
             Action:
               - logs:CreateLogStream
               - logs:PutLogEvents
             Effect: Allow
 
-  IAMManagedPolicydynamodbquotewrite:
+  IAMManagedPolicydynamodbquoteappwrite:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: dynamo-db-quotes-table-writer-cftest1
+      ManagedPolicyName: dynamo-db-quote-app-write
       Path: /
-      Description: Policy with PutItem and BatchWriteItem permission to the quotes table.
+      Description: Policy with PutItem and BatchWriteItem permission to the quote-app table.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Resource:
-              - arn:aws:dynamodb:*:577224486130:table/quotes-cftest1/index/quote_id
-              - arn:aws:dynamodb:*:577224486130:table/quotes-cftest1
+              - arn:aws:dynamodb:*:577224486130:table/quote-app/index/quote_id
+              - arn:aws:dynamodb:*:577224486130:table/quote-app
             Action:
               - dynamodb:PutItem
               - dynamodb:BatchWriteItem
             Effect: Allow
             Sid: VisualEditor0
 
-  IAMManagedPolicypolicys3quoteread:
+  IAMManagedPolicys3quoteappread:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: s3-quote-read-cftest1
+      ManagedPolicyName: s3-quote-app-read
       Path: /
       Description: Policy with GetObject permissions to the quotes.csv object in the quotes bucket.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Resource: arn:aws:s3:::quotes-cftest1/quotes.csv
+          - Resource: arn:aws:s3:::quote-app/quotes.csv
             Action: s3:GetObject
             Effect: Allow
             Sid: VisualEditor0
