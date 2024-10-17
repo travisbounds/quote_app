@@ -17,7 +17,7 @@ def lambda_handler(event, context):
         message = f"Error fetching file {quote_source_filename} from source bucket {bucket}. Please check source bucket and file. {e}"
         status_code = 500
         print(message)
-        raise Exception
+        raise Exception(message)
     try:
         decoded_object = quote_data_object['Body'].read().decode('utf-8')
         quotes = csv.DictReader(decoded_object.splitlines())
@@ -25,7 +25,7 @@ def lambda_handler(event, context):
         message = f"Error decoding file {quote_source_filename}. Please check source file. {e}"
         status_code = 500
         print(message)
-        raise Exception
+        raise Exception(message)
     item_count = 0
     error_count = 0
     errored_items = []
@@ -53,7 +53,7 @@ def lambda_handler(event, context):
         message = f"Error populating quote data in table {table_name}. Please check table and permissions. {e}"
         status_code = 500
         print(message)
-        raise Exception
+        raise Exception(message)
     return {
         'statusCode': status_code,
         'body': message,

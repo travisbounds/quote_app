@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         print(message)
         body = {'message': message}
         status_code = 500
-        raise Exception
+        raise Exception(message)
     
     quotes = table_response['Items']
     random_quote = random.choice(quotes)
@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         print(message)
         status_code = 500
         body = {'message': message}
-        raise Exception
+        raise Exception(message)
     
     try:
         log_message = f"{datetime.now(timezone.utc)} Fetched quote: \"{quote_text}\" - {author}"
@@ -47,7 +47,7 @@ def lambda_handler(event, context):
         print(message)
         status_code = 500
         body = {'message': message}
-        raise Exception
+        raise Exception(message)
 
     print(f"Logged message: {log_message}")
     message = f"Sucessfully fetched random quote and logged it to logfile {logfile} in bucket {bucket}."
@@ -58,7 +58,7 @@ def lambda_handler(event, context):
         'quote': quote_text,
         'author': author
     }
-    
+
     return {
         'statusCode': status_code,
         'body': body

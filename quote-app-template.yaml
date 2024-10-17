@@ -268,7 +268,9 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Resource: arn:aws:s3:::quotes-cftest1/*
-            Action: s3:GetObject
+            Action: 
+              - s3:GetObject
+              - s3:ListBucket
             Effect: Allow
             Sid: VisualEditor0
 
