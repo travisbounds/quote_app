@@ -95,7 +95,7 @@ Resources:
       Handler: quote_fetcher.lambda_handler
       Code:
         S3Bucket: quote-app-source
-        S3Key: quote-fetcher.zip
+        S3Key: quote_fetcher.zip
       Role: !GetAtt IAMRolequotefetcher.Arn
       FunctionName: quote-fetcher-cftest1
       Runtime: python3.12
@@ -132,7 +132,7 @@ Resources:
       Handler: quote_writer.lambda_handler
       Code:
         S3Bucket: quote-app-source
-        S3Key: quote-writer.zip
+        S3Key: quote_writer.zip
       Role: !GetAtt IAMRolequotewriter.Arn
       FunctionName: quote-writer-cftest1
       Runtime: python3.12
