@@ -102,7 +102,7 @@ Resources:
         UpdateRuntimeOn: "Auto"
       Handler: "index.lambda_handler"
       Code:
-        # S3Bucket: "quotes-cftest1"
+        # S3Bucket: "quote-app-source"
         # S3Key: "quote-fetcher-package.zip"
         ZipFile: |
           import json
@@ -113,7 +113,7 @@ Resources:
 
           dynamodb_client = boto3.client('dynamodb')
           s3_client = boto3.client('s3')
-          table = os.environ['dynamo_db_table']
+          table = os.environ['dynamodb_table']
           bucket = os.environ['s3_bucket']
           logfile_key = os.environ['s3_logfile']
 
@@ -175,8 +175,8 @@ Resources:
         Variables:
           s3_logfile: "quote-log.txt"
           s3_bucket: "quotes-cftest1"
-          dynamo_db_table: "quotes-cftest1"
-      Timeout: 3
+          dynamodb_table: "quotes-cftest1"
+      Timeout: 10
   LambdaPermissionfunctionquotefetcher:
     DependsOn: "LambdaFunctionquotefetchercftest1"
     Type: "AWS::Lambda::Permission"
@@ -200,7 +200,7 @@ Resources:
         UpdateRuntimeOn: "Auto"
       Handler: "index.lambda_handler"
       Code:
-        # S3Bucket: "quotes-cftest1"
+        # S3Bucket: "quote-app-source"
         # S3Key: "quote-writer-package.zip"
         ZipFile: |
           import boto3
@@ -213,7 +213,7 @@ Resources:
               table = dynamodb.Table(table_name)
               
               s3 = boto3.client('s3')
-              bucket = 'quotes-cftest1'
+              bucket = os.environ['bucket']
               file_key = 'quotes.csv'
               
               s3_object = s3.get_object(Bucket=bucket, Key=file_key)
@@ -257,8 +257,11 @@ Resources:
         LogFormat: "Text"
         LogGroup: "/aws/lambda/quote-writer-cftest1"
       RecursiveLoop: "Terminate"
-      # Environment:
-      #   Variables:
+      Environment:
+        Variables:
+          source_bucket: "quote-app-source"
+          quotes_source_file: "quotes.csv"
+          dynamodb_table: "quotes-cftest1"
       Timeout: 30
   LambdaPermissionfunctionwriter:
     DependsOn: "LambdaFunctionquotewritercftest1"
